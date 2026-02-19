@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm;
+  }
+  .label {
+    @apply block text-sm font-semibold text-gray-700 mb-2;
+  }
+  .btn-primary {
+    @apply bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold flex items-center justify-center;
+  }
+  .tag {
+    @apply px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm;
+  }
+}

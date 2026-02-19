@@ -1,0 +1,34 @@
+# On Mac/Linux
+cat > .gitignore << 'EOF'
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Python
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.venv/
+
+# Build outputs
+frontend/dist/
+frontend/build/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+EOF
