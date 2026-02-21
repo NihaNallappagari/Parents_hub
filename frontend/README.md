@@ -1,7 +1,6 @@
 # ParentsHub 👨‍👩‍👧‍👦
 
-A hyperlocal social platform connecting parents for both urgent help and shared activities. Whether you need medicine in a new city or want to find families for a zoo trip, ParentsHub connects you with nearby 
-parents.
+A hyperlocal parent-to-parent help network. Parents can post urgent requests (medicine, supplies, toys) that notify nearby parents based on location and kids' ages.
 
 ---
 
@@ -121,7 +120,7 @@ Frontend will be live at: **http://localhost:3000**
 
 ## Features
 
-- ✅ User registration & login
+- ✅ User registration & login (max 5 users for demo)
 - ✅ Parent profiles with public kids ages
 - ✅ Create posts with priority level (Emergency Medical, Important, General)
 - ✅ Adjustable radius per post (10 / 20 / 30 / 50 miles)
@@ -136,3 +135,26 @@ Frontend will be live at: **http://localhost:3000**
 - ✅ Trust score per user
 - ✅ Kudos section on profile
 - ✅ All API calls from frontend to backend
+
+---
+
+## Notes
+
+- **In-memory storage** means all data resets when the backend restarts
+- Max 5 users enforced by the backend
+- Location matching uses ZIP code proximity (simplified) — replace with PostGIS/Google Maps for production
+- No authentication tokens (user ID used as token for demo simplicity)
+- To upgrade to production: add PostgreSQL + MongoDB, real JWT auth, and deploy to AWS/DigitalOcean
+
+---
+
+## Next Steps for Production
+
+1. Replace in-memory storage with PostgreSQL + MongoDB
+2. Add real JWT authentication
+3. Integrate real geolocation (PostGIS or Google Maps)
+4. Add Firebase push notifications
+5. Add image upload (AWS S3 or Cloudinary)
+6. Add ID verification (Stripe Identity or similar)
+7. Deploy backend to AWS EC2 / DigitalOcean
+8. Deploy frontend to Vercel
