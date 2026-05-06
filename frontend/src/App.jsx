@@ -4,7 +4,7 @@ import {
   Send, Share2, CheckCircle, AlertCircle, Info, X, Plus, Filter
 } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ─────────────────────────────────────────────
 // API HELPERS
