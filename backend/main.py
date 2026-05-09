@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 import uuid
 import time
+import bcrypt
 
 from database import engine, get_db, Base
 from models import (
@@ -80,6 +81,12 @@ class MessageRequest(BaseModel):
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 def make_id():
     return str(uuid.uuid4())
@@ -182,7 +189,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         name=req.name,
         email=req.email,
         display_name=req.display_name,
-        password=req.password,
+        password=hash_password(req.password),
         phone=req.phone,
         profile_picture=req.profile_picture,
         id_verified=req.id_verified,
@@ -204,10 +211,8 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 @app.post("/auth/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(DBUser).filter(
-        DBUser.email == req.email, DBUser.password == req.password
-    ).first()
-    if not user:
+    user = db.query(DBUser).filter(DBUser.email == req.email).first()
+    if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     return {"user": user_public(user), "token": user.id}
 
