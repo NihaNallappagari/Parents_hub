@@ -413,11 +413,11 @@ function AuthScreen({ onLogin, showError }) {
         <div className="mb-10">
           <div className="text-6xl mb-4">👨‍👩‍👧‍👦</div>
           <h1 className="text-4xl font-extrabold tracking-tight mb-3">ParentsHub</h1>
-          <p className="text-indigo-200 text-lg leading-relaxed">Your local parent community — connect, share, and support families near you.</p>
+          <p className="text-indigo-200 text-lg leading-relaxed">Your neighborhood parent network — ask, offer, and connect.</p>
         </div>
         <div className="space-y-5">
           {[
-            ["🏘️", "Hyper-local", "Connect with parents in your ZIP code"],
+            ["🏘️", "Hyper-local", "Every parent can connect to a village nearby"],
             ["🚨", "Emergency help", "Get urgent help from nearby families fast"],
             ["🏆", "Kudos system", "Recognize and reward helpful neighbors"],
           ].map(([icon, title, desc]) => (
