@@ -66,6 +66,8 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError]             = useState("");
   const [gpsLocation, setGpsLocation] = useState(null); // { lat, lng } | null
+  const [statsTick, setStatsTick]     = useState(0);
+  const refreshStats = () => setStatsTick(t => t + 1);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -177,12 +179,12 @@ export default function App() {
             )}
           </div>
 
-          <RightSidebar token={token} navigate={navigate} gpsLocation={gpsLocation} />
+          <RightSidebar token={token} navigate={navigate} gpsLocation={gpsLocation} statsTick={statsTick} />
         </div>
       </div>
 
       {screen === "newPost" && (
-        <NewPostModal token={token} onClose={() => navigate("home")} onPosted={() => navigate("home")} setError={setError} />
+        <NewPostModal token={token} onClose={() => navigate("home")} onPosted={() => { navigate("home"); refreshStats(); }} setError={setError} />
       )}
       {screen === "postDetail" && selectedPost && (
         <PostDetailModal
@@ -192,6 +194,7 @@ export default function App() {
           onClose={() => navigate("home")}
           onMessageUser={(user) => navigate("chat", null, user)}
           onViewProfile={(user) => navigate("profile", null, user)}
+          onDataChanged={refreshStats}
           setError={setError}
         />
       )}
@@ -323,13 +326,13 @@ function SideLink({ icon, label, active, onClick, danger }) {
 // ─────────────────────────────────────────────
 // RIGHT SIDEBAR
 // ─────────────────────────────────────────────
-function RightSidebar({ token, gpsLocation }) {
+function RightSidebar({ token, gpsLocation, statsTick }) {
   const [stats, setStats] = useState(null);
   useEffect(() => {
     if (!token) return;
     const gps = gpsLocation ? `&lat=${gpsLocation.lat}&lng=${gpsLocation.lng}` : "";
     api.get(`/stats?user_id=${token}${gps}`).then(setStats).catch(() => {});
-  }, [token, gpsLocation]);
+  }, [token, gpsLocation, statsTick]);
 
   return (
     <aside className="hidden lg:flex flex-col gap-4 sticky top-20">
@@ -709,7 +712,7 @@ function NewPostModal({ token, onClose, onPosted, setError }) {
 // ─────────────────────────────────────────────
 // POST DETAIL MODAL
 // ─────────────────────────────────────────────
-function PostDetailModal({ postId, token, currentUser, onClose, onMessageUser, onViewProfile, setError }) {
+function PostDetailModal({ postId, token, currentUser, onClose, onMessageUser, onViewProfile, onDataChanged, setError }) {
   const [post, setPost] = useState(null);
   const [comment, setComment] = useState("");
   const [showEdit, setShowEdit] = useState(false);
@@ -751,7 +754,7 @@ function PostDetailModal({ postId, token, currentUser, onClose, onMessageUser, o
   };
 
   const handleResolve = async () => {
-    try { await api.post(`/posts/${postId}/complete?user_id=${token}`, {}); fetchPost(); }
+    try { await api.post(`/posts/${postId}/complete?user_id=${token}`, {}); fetchPost(); onDataChanged?.(); }
     catch (err) { setError(err.message); }
   };
 
@@ -762,13 +765,14 @@ function PostDetailModal({ postId, token, currentUser, onClose, onMessageUser, o
       setKudosCommenterId(null);
       setKudosStars(5);
       fetchPost();
+      onDataChanged?.();
     } catch (err) { setError(err.message); }
     finally { setKudosLoading(false); }
   };
 
   const handleDelete = async () => {
     if (!window.confirm("Delete this post? This cannot be undone.")) return;
-    try { await api.delete(`/posts/${postId}?user_id=${token}`); onClose(); }
+    try { await api.delete(`/posts/${postId}?user_id=${token}`); onClose(); onDataChanged?.(); }
     catch (err) { setError(err.message); }
   };
 

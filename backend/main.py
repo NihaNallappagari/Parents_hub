@@ -195,6 +195,24 @@ def make_id() -> str:
 def now_ts() -> int:
     return int(time.time() * 1000)
 
+def proximity_clause(user_location, lat: Optional[float], lng: Optional[float], alias: str, radius_m: float, allow_null: bool):
+    """
+    SQL fragment + params filtering `alias`.location within radius_m meters of an origin.
+    Origin is live GPS (lat/lng) if given, else the user's stored location. Returns (None, [])
+    if neither is available, meaning no filtering is possible.
+    allow_null=True also matches rows where `alias`.location IS NULL (can't be excluded by distance).
+    """
+    if lat is not None and lng is not None:
+        origin, params = f"ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)", [radius_m]
+    elif user_location is not None:
+        origin, params = "%s::geometry", [user_location, radius_m]
+    else:
+        return None, []
+    within = f"ST_DWithin(geography({alias}.location), geography({origin}), %s)"
+    if allow_null:
+        return f"({alias}.location IS NULL OR {within})", params
+    return f"({alias}.location IS NOT NULL AND {within})", params
+
 # Explicit aliases avoid p.id / u.id column collision in RealDictCursor JOIN results
 POST_COLUMNS = """
     p.id            AS post_id,
@@ -385,36 +403,15 @@ def get_posts(user_id: str, radius: int = 50, lat: Optional[float] = None, lng: 
                 raise HTTPException(status_code=404, detail="User not found.")
 
             # Use live GPS coords if provided, otherwise fall back to stored location
-            if lat is not None and lng is not None:
-                origin = f"ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)"
-                cur.execute(
-                    f"SELECT {POST_COLUMNS} FROM posts p"
-                    " JOIN users u ON p.author_id = u.id"
-                    " LEFT JOIN users ku ON p.kudos_user_id = ku.id"
-                    f" WHERE p.expires_at > %s"
-                    f"   AND (u.location IS NULL OR ST_DWithin(geography(u.location), geography({origin}), %s))"
-                    " ORDER BY p.created_at DESC",
-                    (now, radius_m),
-                )
-            elif requester["location"] is not None:
-                cur.execute(
-                    f"SELECT {POST_COLUMNS} FROM posts p"
-                    " JOIN users u ON p.author_id = u.id"
-                    " LEFT JOIN users ku ON p.kudos_user_id = ku.id"
-                    " WHERE p.expires_at > %s"
-                    "   AND (u.location IS NULL OR ST_DWithin("
-                    "         geography(u.location), geography(%s::geometry), %s))"
-                    " ORDER BY p.created_at DESC",
-                    (now, requester["location"], radius_m),
-                )
-            else:
-                cur.execute(
-                    f"SELECT {POST_COLUMNS} FROM posts p"
-                    " JOIN users u ON p.author_id = u.id"
-                    " LEFT JOIN users ku ON p.kudos_user_id = ku.id"
-                    " WHERE p.expires_at > %s ORDER BY p.created_at DESC",
-                    (now,),
-                )
+            clause, params = proximity_clause(requester["location"], lat, lng, "u", radius_m, allow_null=True)
+            where = f"p.expires_at > %s AND {clause}" if clause else "p.expires_at > %s"
+            cur.execute(
+                f"SELECT {POST_COLUMNS} FROM posts p"
+                " JOIN users u ON p.author_id = u.id"
+                " LEFT JOIN users ku ON p.kudos_user_id = ku.id"
+                f" WHERE {where} ORDER BY p.created_at DESC",
+                [now, *params],
+            )
             rows = cur.fetchall()
 
     return [row_to_post(row) for row in rows]
@@ -745,29 +742,21 @@ def mark_read(notif_id: str):
 @app.get("/stats")
 def get_stats(user_id: str, radius: int = 50, lat: Optional[float] = None, lng: Optional[float] = None):
     radius_m = radius * MILES_TO_METERS
-    sixty_days_ago = now_ts() - 60 * 24 * 60 * 60 * 1000
+    now = now_ts()
+    sixty_days_ago = now - 60 * 24 * 60 * 60 * 1000
 
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT location FROM users WHERE id = %s", (user_id,))
             user = cur.fetchone()
+            user_location = user["location"] if user else None
 
-            if lat is not None and lng is not None:
-                origin = f"ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)"
+            clause, params = proximity_clause(user_location, lat, lng, "u", radius_m, allow_null=False)
+            if clause:
                 cur.execute(
-                    f"""SELECT COUNT(*) AS c FROM users
-                        WHERE id != %s AND last_active_at > %s
-                          AND location IS NOT NULL
-                          AND ST_DWithin(geography(location), geography({origin}), %s)""",
-                    (user_id, sixty_days_ago, radius_m),
-                )
-            elif user and user["location"] is not None:
-                cur.execute(
-                    """SELECT COUNT(*) AS c FROM users
-                       WHERE id != %s AND last_active_at > %s
-                         AND location IS NOT NULL
-                         AND ST_DWithin(geography(location), geography(%s::geometry), %s)""",
-                    (user_id, sixty_days_ago, user["location"], radius_m),
+                    f"SELECT COUNT(*) AS c FROM users u"
+                    f" WHERE u.id != %s AND u.last_active_at > %s AND {clause}",
+                    [user_id, sixty_days_ago, *params],
                 )
             else:
                 cur.execute(
@@ -776,7 +765,13 @@ def get_stats(user_id: str, radius: int = 50, lat: Optional[float] = None, lng: 
                 )
             active_nearby = cur.fetchone()["c"]
 
-            cur.execute("SELECT COUNT(*) AS c FROM posts WHERE expires_at > %s", (now_ts(),))
+            # Same author-location fallback as /posts, so this matches what the feed actually shows
+            clause, params = proximity_clause(user_location, lat, lng, "u", radius_m, allow_null=True)
+            where = f"p.expires_at > %s AND p.completed = FALSE AND {clause}" if clause else "p.expires_at > %s AND p.completed = FALSE"
+            cur.execute(
+                f"SELECT COUNT(*) AS c FROM posts p JOIN users u ON p.author_id = u.id WHERE {where}",
+                [now, *params],
+            )
             open_posts = cur.fetchone()["c"]
 
     return {"parents_nearby": active_nearby, "open_posts": open_posts}
